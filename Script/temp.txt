@@ -1,0 +1,416 @@
+import sqlite3
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import requests
+import json
+
+from scraper import scrape_tech_articles
+
+
+
+
+# Summarization function using Google Gemini
+def summarize_with_gemini(text):
+    api_url = "https://gemini.googleapis.com/v1/summarize"
+    headers = {
+        "Authorization": f"Bearer YOUR_API_KEY",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "text": text,
+        "length": "short"  # Adjust length as needed: "short", "medium", "long"
+    }
+    response = requests.post(api_url, headers=headers, json=data)
+    summary = response.json().get("summary", "")
+    return summary
+
+
+
+
+# Json Config
+with open('config.json') as config_file:
+    config = json.load(config_file)
+
+smtp_user = config['smtp_user']
+smtp_password = config['smtp_password']
+smtp_server = config['smtp_server']
+smtp_port = config['smtp_port']
+smtp_from = config['smtp_from']
+# Email functions
+def send_email(subject, body, to_email):
+    
+
+    msg = MIMEMultipart()
+    msg['From'] = 'your_verified_email@example.com'
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'html'))
+
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+        print('Email sent!')
+    except Exception as e:
+        print(f"Error: {e}")
+
+def format_email(articles):
+    email_body = "<h1>Daily Tech News</h1>"
+    for article in articles:
+        summary = summarize_with_gemini(article['content'])
+        email_body += f"<h2>{article['title']}</h2><p>{summary}</p>"
+    return email_body
+
+def get_subscribers():
+    conn = sqlite3.connect('subscribers.db')
+    c = conn.cursor()
+    c.execute("SELECT email FROM subscribers")
+    subscribers = [row[0] for row in c.fetchall()]
+    conn.close()
+    return subscribers
+
+if __name__ == '__main__':
+    articles = scrape_tech_articles()
+    email_body = format_email(articles)
+    subscribers = get_subscribers()
+    for subscriber in subscribers:
+        send_email('Daily Tech News Summary', email_body, subscriber)
+
+
+
+# Pay Walled
+# def scrape_wired():
+#     url = 'https://www.wired.com/tag/technology/'
+#     response = requests.get(url)
+#     soup = BeautifulSoup(response.text, 'html.parser')
+    
+#     articles = []
+
+#     # Find all article blocks within the specified classes
+#     for article in soup.find_all('div', class_='SummaryItemWrapper-iwvBff'):
+#         # Extract the title
+#         title_element = article.find('a', class_='SummaryItemHedLink-civMjp')
+#         title = title_element.get_text(strip=True) if title_element else "No title found"
+
+#         # Extract the link
+#         link = title_element['href'] if title_element else None
+#         link = url + link if link and link.startswith('/') else link
+
+#         # Extract the author
+#         author_element = article.find('span', class_='BylineName-kwmrLn')
+#         author = author_element.get_text(strip=True) if author_element else "No author found"
+
+
+#         # Extract the excerpt
+#         excerpt_element = article.find('div', class_='SummaryItemContent-eiDYMl')
+#         excerpt = excerpt_element.get_text(strip=True) if excerpt_element else "No excerpt provided"
+
+#         articles.append({
+#             'title': title,
+#             'link': link,
+#             'author': author,
+#             'time': publication_time,
+#             'excerpt': excerpt
+#         })
+    
+#     return articles
+
+
+SORTA WORKING CLUSTERING:
+from scraper import scrape_techcrunch_rss, scrape_verge_rss, scrape_cnet_rss, scrape_eurogamer_rss, scrape_techradar_rss, scrape_mashable_rss, scrape_gizmodo_rss_feed
+import re
+import nltk
+from collections import Counter
+
+# Download the necessary data
+nltk.download('punkt')  # For tokenization
+nltk.download('stopwords')  # For stop words
+
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+
+# Combine all articles into a single data set
+def aggregate_articles():
+    def add_content_field(articles):
+        for article in articles:
+            article['content'] = f"{article['title']} - {article['summary']}"
+        return articles
+
+    # Scrape articles from different sources
+    techcrunch_articles = scrape_techcrunch_rss()
+    verge_articles = scrape_verge_rss()
+    cnet_articles = scrape_cnet_rss()
+    eurogamer_articles = scrape_eurogamer_rss()
+    techradar_articles = scrape_techradar_rss()
+    mashable_articles = scrape_mashable_rss()
+    gizmodo_articles = scrape_gizmodo_rss_feed()
+
+    # Combine all articles
+    all_articles = []
+    all_articles.extend(techcrunch_articles)
+    all_articles.extend(verge_articles)
+    all_articles.extend(cnet_articles)
+    all_articles.extend(eurogamer_articles)
+    all_articles.extend(techradar_articles)
+    all_articles.extend(mashable_articles)
+    all_articles.extend(gizmodo_articles)
+
+    # Add content field to all articles
+    all_articles_with_content = add_content_field(all_articles)
+
+    return all_articles_with_content
+
+# Data preprocessing
+def preprocess_text(text):
+    # Remove HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Remove special characters and digits
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    # Convert to lowercase
+    text = text.lower()
+    # Tokenize and remove stopwords
+    tokens = word_tokenize(text)
+    stop_words = set(stopwords.words('english'))
+    tokens = [word for word in tokens if word not in stop_words]
+    return ' '.join(tokens)
+
+def preprocess_articles(articles):
+    for article in articles:
+        article['content'] = preprocess_text(article['content'])
+    return articles
+
+# Converting text into feature vectors
+def extract_features(articles):
+    texts = [article['content'] for article in articles]
+    vectorizer = TfidfVectorizer(stop_words='english')
+    X = vectorizer.fit_transform(texts)
+    return X, vectorizer
+
+# Using KMeans clustering to group articles
+def cluster_articles(X, n_clusters=10):
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    kmeans.fit(X)
+    return kmeans.labels_, kmeans.cluster_centers_
+
+# Get the most common terms in each cluster
+def get_cluster_keywords(cluster_centers, vectorizer, top_n=10):
+    terms = vectorizer.get_feature_names_out()
+    cluster_keywords = {}
+    
+    for i, center in enumerate(cluster_centers):
+        top_indices = center.argsort()[-top_n:][::-1]
+        top_terms = [terms[idx] for idx in top_indices]
+        cluster_keywords[i] = top_terms
+        
+    return cluster_keywords
+
+# Assigning clusters to articles
+def assign_clusters(articles, labels):
+    for i, article in enumerate(articles):
+        article['cluster'] = labels[i]
+    return articles
+
+# Print cluster information
+def print_cluster_info(cluster_keywords):
+    for cluster, keywords in cluster_keywords.items():
+        print(f"Cluster {cluster}: {', '.join(keywords)}")
+
+def main():
+    articles = aggregate_articles()
+    articles = preprocess_articles(articles)
+    
+    X, vectorizer = extract_features(articles)
+    labels, cluster_centers = cluster_articles(X, n_clusters=5)  # You can adjust the number of clusters
+    
+    tagged_articles = assign_clusters(articles, labels)
+    
+    # Get and print keywords for each cluster
+    cluster_keywords = get_cluster_keywords(cluster_centers, vectorizer)
+    print_cluster_info(cluster_keywords)
+    
+    # Print out tagged articles for inspection
+    for article in tagged_articles:
+        print(f"Title: {article['title']}")
+        print(f"Cluster: {article['cluster']}")
+        print(f"Summary: {article['summary']}\n")
+
+if __name__ == "__main__":
+    main()
+
+//TO REVIEW
+from scraper import (
+    scrape_techcrunch_rss, scrape_verge_rss, scrape_cnet_rss,
+    scrape_eurogamer_rss, scrape_techradar_rss, scrape_mashable_rss,
+    scrape_gizmodo_rss, get_techcrunch_article, scrape_verge_article,
+    scrape_cnet_article, scrape_eurogamer_article, scrape_mashable_article,
+    scrape_gizmodo_article
+)
+import re
+import nltk
+from collections import Counter
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+
+# Download the necessary data
+nltk.download('punkt')  # For tokenization
+nltk.download('stopwords')  # For stop words
+
+# Combine all articles into a single data set
+def aggregate_articles():
+    def add_content_field(articles, scrape_function):
+        articles_with_content = []
+        for article in articles:
+            full_content = scrape_function(article['link'])
+            if full_content:
+                article.update(full_content)
+            articles_with_content.append(article)
+        return articles_with_content
+
+    # Scrape articles from different sources
+    techcrunch_articles = scrape_techcrunch_rss()
+    verge_articles = scrape_verge_rss()
+    cnet_articles = scrape_cnet_rss()
+    eurogamer_articles = scrape_eurogamer_rss()
+    techradar_articles = scrape_techradar_rss()
+    mashable_articles = scrape_mashable_rss()
+    gizmodo_articles = scrape_gizmodo_rss()
+
+    # Add full content to articles
+    techcrunch_articles_with_content = add_content_field(techcrunch_articles, get_techcrunch_article)
+    verge_articles_with_content = add_content_field(verge_articles, scrape_verge_article)
+    cnet_articles_with_content = add_content_field(cnet_articles, scrape_cnet_article)
+    eurogamer_articles_with_content = add_content_field(eurogamer_articles, scrape_eurogamer_article)
+    mashable_articles_with_content = add_content_field(mashable_articles, scrape_mashable_article)
+    gizmodo_articles_with_content = add_content_field(gizmodo_articles, scrape_gizmodo_article)
+
+    # Combine all articles
+    all_articles = (
+        techcrunch_articles_with_content +
+        verge_articles_with_content +
+        cnet_articles_with_content +
+        eurogamer_articles_with_content +
+        techradar_articles +
+        mashable_articles_with_content +
+        gizmodo_articles_with_content
+    )
+
+    return all_articles
+
+# Data preprocessing
+def preprocess_text(text):
+    # Remove HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Remove special characters and digits
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    # Convert to lowercase
+    text = text.lower()
+    # Tokenize and remove stopwords
+    tokens = word_tokenize(text)
+    stop_words = set(stopwords.words('english'))
+    tokens = [word for word in tokens if word not in stop_words]
+    return ' '.join(tokens)
+
+def preprocess_articles(articles):
+    for article in articles:
+        article['content'] = preprocess_text(article['content'])
+        if 'summary' in article:
+            article['summary'] = preprocess_text(article['summary'])
+    return articles
+
+# Convert text into feature vectors
+def extract_features(texts):
+    vectorizer = TfidfVectorizer(stop_words='english')
+    X = vectorizer.fit_transform(texts)
+    return X, vectorizer
+
+# Reduce dimensionality using PCA
+def reduce_dimensionality(X, n_components=50):
+    pca = PCA(n_components=n_components)
+    X_reduced = pca.fit_transform(X.toarray())  # Convert sparse matrix to dense array
+    return X_reduced
+
+# Initial Clustering with Summaries
+def initial_clustering(articles):
+    texts = [f"{article['title']} {article['summary']}" for article in articles]
+    texts = [preprocess_text(text) for text in texts]
+    
+    vectorizer = TfidfVectorizer()
+    X = vectorizer.fit_transform(texts)
+    
+    # Reduce dimensionality
+    X_reduced = reduce_dimensionality(X)
+    
+    num_clusters = 5  # Adjust number of clusters
+    kmeans = KMeans(n_clusters=num_clusters, random_state=0)
+    kmeans.fit(X_reduced)
+    
+    # Assign cluster labels
+    for i, article in enumerate(articles):
+        article['cluster'] = kmeans.labels_[i]
+    
+    return articles, kmeans, vectorizer
+
+# Refine Clusters Using Full Content
+def refine_clusters(articles, kmeans, vectorizer):
+    clusters = {}
+    
+    for article in articles:
+        cluster_id = article['cluster']
+        if cluster_id not in clusters:
+            clusters[cluster_id] = []
+        clusters[cluster_id].append(article)
+    
+    refined_clusters = {}
+    
+    for cluster_id, cluster_articles in clusters.items():
+        # Combine full content for re-clustering
+        texts = [preprocess_text(article['content']) for article in cluster_articles]
+        vectorizer = TfidfVectorizer()
+        X = vectorizer.fit_transform(texts)
+        
+        # Reduce dimensionality
+        X_reduced = reduce_dimensionality(X)
+        
+        num_subclusters = 3  # Adjust as needed
+        kmeans = KMeans(n_clusters=num_subclusters, random_state=0)
+        kmeans.fit(X_reduced)
+        
+        for i, article in enumerate(cluster_articles):
+            article['subcluster'] = kmeans.labels_[i]
+        
+        refined_clusters[cluster_id] = cluster_articles
+    
+    return refined_clusters
+
+# Print cluster information
+def print_cluster_info(cluster_keywords):
+    for cluster, keywords in cluster_keywords.items():
+        print(f"Cluster {cluster}: {', '.join(keywords)}")
+
+def main():
+    articles = aggregate_articles()
+    articles = preprocess_articles(articles)
+    
+    # Initial clustering
+    articles, kmeans, vectorizer = initial_clustering(articles)
+    
+    # Refine clusters
+    refined_clusters = refine_clusters(articles, kmeans, vectorizer)
+    
+    # For visualization, you can print out the refined clusters
+    for cluster_id, cluster_articles in refined_clusters.items():
+        print(f"Refined Cluster {cluster_id}:")
+        for article in cluster_articles:
+            print(f"  Title: {article['title']}")
+            print(f"  Subcluster: {article.get('subcluster', 'N/A')}")
+            print(f"  Summary: {article['summary']}\n")
+
+if __name__ == "__main__":
+    main()

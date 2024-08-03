@@ -1,0 +1,10 @@
+.articles {
+    background-color: white;
+    padding: 20px;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+h2 {
+    color: #333;
+}

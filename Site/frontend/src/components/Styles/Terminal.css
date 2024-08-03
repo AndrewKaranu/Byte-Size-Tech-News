@@ -1,0 +1,38 @@
+.terminal {
+    background-color: #000;
+    color: #0f0;
+    font-family: 'Courier New', Courier, monospace;
+    padding: 10px;
+    height: 91%;
+    display: flex;
+    flex-direction: column;
+}
+
+.window-body {
+    height: calc(100% - 30px);
+    overflow: hidden;
+}
+
+.output {
+    flex-grow: 1;
+    overflow-y: auto;
+    text-align: left;
+    white-space: pre-wrap;
+}
+
+.input-line {
+    display: flex;
+}
+
+.prompt {
+    margin-right: 5px;
+}
+
+input {
+    background: none;
+    border: none;
+    color: #0f0;
+    outline: none;
+    flex-grow: 1;
+    font-family: 'Courier New', Courier, monospace;
+}

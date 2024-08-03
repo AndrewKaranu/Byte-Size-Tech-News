@@ -1,0 +1,55 @@
+/* Window.css */
+.window {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: silver;
+    border: 1px solid #000000;
+    box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #dfdfdf, inset -2px -2px grey, inset 2px 2px #fff;
+}
+
+.title-bar {
+    background: linear-gradient(90deg, navy, #1084d0);
+    padding: 3px 2px 3px 3px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.title-bar-text {
+    font-weight: bold;
+    color: white;
+    letter-spacing: 0;
+    margin-right: 24px;
+}
+
+.title-bar-controls {
+    display: flex;
+}
+
+.title-bar-controls button {
+    display: block;
+    min-width: 16px;
+    min-height: 14px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: silver;
+    box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff, inset -2px -2px grey, inset 2px 2px #dfdfdf;
+}
+
+.title-bar-controls button:active {
+    box-shadow: inset -1px -1px #ffffff, inset 1px 1px #0a0a0a, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+}
+
+.window-body {
+    padding: 10px;
+}
+
+.terminal-window, .articles-window, .support-window {
+    width: 80%;
+    height: 80%;
+    max-width: 800px;
+    max-height: 600px;
+}
