@@ -4,6 +4,12 @@ import './Styles/StartMenu.css';
 const StartMenu = ({ isOpen, onClose, onShutDown }) => {
   if (!isOpen) return null;
 
+  const handleAdminAccess = () => {
+    // Redirect to the admin page
+    window.location.href = '/admin';
+    onClose();
+  };
+
   return (
     <div className="start-menu-overlay" onClick={onClose}>
       <div className="start-menu" onClick={(e) => e.stopPropagation()}>
@@ -11,6 +17,14 @@ const StartMenu = ({ isOpen, onClose, onShutDown }) => {
           <span className="start-menu-title">Byte Sized Tech News</span>
         </div>
         <div className="start-menu-items">
+          {/* Admin link */}
+          <div className="start-menu-item admin" onClick={handleAdminAccess}>
+            <img src="/admin-icon.png" alt="Admin" />
+            <span>Admin Panel</span>
+          </div>
+          
+          <div className="start-menu-separator"></div>
+          
           <div className="start-menu-item" onClick={() => window.open('https://github.com/yourusername', '_blank')}>
             <img src="/path/to/github-icon.png" alt="GitHub" />
             <span>GitHub</span>

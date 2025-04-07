@@ -19,7 +19,7 @@ EMAIL_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <h1>Tech News Digest</h1>
+        <h1>Byte Sized Tech News</h1>
         {content}
     </div>
 </body>

@@ -1,5 +1,5 @@
-from scraper import scrape_techcrunch_rss, scrape_verge_rss, scrape_cnet_rss, scrape_eurogamer_rss, scrape_techradar_rss
-from scraper import scrape_mashable_rss, scrape_gizmodo_rss, scrape_wsj_rss, scrape_medium_topics
+from app.scraper import scrape_techcrunch_rss, scrape_verge_rss, scrape_cnet_rss, scrape_eurogamer_rss, scrape_techradar_rss
+from app.scraper import scrape_mashable_rss, scrape_gizmodo_rss, scrape_wsj_rss, scrape_medium_topics
 import re
 import google.generativeai as genai
 import nltk
@@ -20,7 +20,7 @@ nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 nltk.download('averaged_perceptron_tagger', quiet=True)
 nltk.download('wordnet', quiet=True)
-
+nltk.download('punkt_tab', quiet=True)
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -61,7 +61,7 @@ def aggregate_articles():
     mashable_articles = scrape_mashable_rss()
     gizmodo_articles = scrape_gizmodo_rss()
     wsj_articles = scrape_wsj_rss()
-    medium_articles = scrape_medium_topics(num_articles_per_topic=3)  # New Medium scraper
+    # medium_articles = scrape_medium_topics(num_articles_per_topic=3)  # New Medium scraper
 
     # Combine all articles with source tracking
     all_articles = []
@@ -102,7 +102,7 @@ def aggregate_articles():
     # Process and add articles from each source
     for articles_list in [techrunch_articles, verge_articles, cnet_articles, eurogamer_articles, 
                          techradar_articles, mashable_articles, gizmodo_articles, wsj_articles,
-                         medium_articles]:  
+                         ]:  
         for article in articles_list:
             all_articles.append(standardize_article(article))
     
@@ -149,7 +149,7 @@ def assign_topics_and_relevance(articles, lda, X):
     topic_distributions = lda.transform(X)
     for i, article in enumerate(articles):
         article['topic'] = topic_distributions[i].argmax()
-        article['topic_relevance'] = topic_distributions[i].max()
+        article['topic_relevance'] = float(topic_distributions[i].max())  # Convert to float
     return articles
 
 def rank_articles_by_relevance(articles):
@@ -333,12 +333,12 @@ def assign_specific_topics_enhanced(articles, use_gemini=True):
         if 'gemini_topic' in article and article['gemini_topic'] and article['gemini_relevance'] >= 6:
             article['specific_topic'] = article['gemini_topic']
             # Scale the Gemini relevance (1-10) to match the keyword relevance scale
-            article['topic_relevance'] = article['gemini_relevance'] / 2
+            article['topic_relevance'] = float(article['gemini_relevance'] / 2)  # Convert to float
             article['tagging_method'] = 'Gemini'
         else:
             # Otherwise fall back to keyword tagging
             article['specific_topic'] = article['keyword_topic']
-            article['topic_relevance'] = article['keyword_relevance']
+            article['topic_relevance'] = float(article['keyword_relevance'])  # Convert to float
             article['tagging_method'] = 'Keyword'
         
         # If neither method produced a result, mark as "Other"

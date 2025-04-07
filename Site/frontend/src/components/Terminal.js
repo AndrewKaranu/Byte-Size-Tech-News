@@ -124,7 +124,7 @@ const Terminal = ({ onClose }) => {
             <div className="title-bar">
                 <div className="title-bar-text">Terminal</div>
                 <div className="title-bar-controls">
-                    <button aria-label="Close" onClick={onClose}></button>
+                    <button aria-label="Close" onClick={onClose}>X</button>
                 </div>
             </div>
             <div className="window-body">

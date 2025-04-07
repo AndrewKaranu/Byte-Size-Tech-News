@@ -7,7 +7,7 @@ import TimeDisplay from './TimeDisplay';
 import desktopBackground from './Styles/background.png';
 import startButtonIcon from './Styles/start-button-icon.png';
 
-const Desktop = ({ openProgram, onShutDown }) => {  // Add onShutDown prop here
+const Desktop = ({ openProgram, onShutDown }) => {
   const [isStartMenuOpen, setIsStartMenuOpen] = useState(false);
 
   const toggleStartMenu = () => {
@@ -34,7 +34,8 @@ const Desktop = ({ openProgram, onShutDown }) => {  // Add onShutDown prop here
       <StartMenu 
         isOpen={isStartMenuOpen} 
         onClose={() => setIsStartMenuOpen(false)} 
-        onShutDown={onShutDown}  // Pass onShutDown to StartMenu
+        onShutDown={onShutDown}
+        openProgram={openProgram}
       />
     </div>
   );
