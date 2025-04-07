@@ -1,70 +1,89 @@
-import os
-from datetime import datetime
-from scraper import aggregate_articles
 from tagging import (
     preprocess_text, assign_specific_topics, rank_specific_topic_articles,
     extract_features, perform_topic_modeling, assign_topics_and_relevance,
-    rank_articles_by_relevance
+    rank_articles_by_relevance,aggregate_articles
 )
 from summarizer import summarize_article, translate_content
 from email_template import generate_email_content
-from email_sender import send_email
 from article_selection import select_top_articles, manual_article_selection
 
 def main():
-    print("Starting the news digest process...")
+    print("Starting the test run...")
 
     # Step 1: Aggregate articles
+    print("\nAggregating articles...")
     articles = aggregate_articles()
     print(f"Total articles aggregated: {len(articles)}")
 
     # Step 2: Preprocess and tag articles
+    print("\nPreprocessing and tagging articles...")
     for article in articles:
         article['content'] = preprocess_text(f"{article['title']} {article['summary']}")
     
     articles = assign_specific_topics(articles)
     ranked_specific_articles = rank_specific_topic_articles(articles)
 
+    # Print some stats about specific topics
+    print("\nSpecific topic distribution:")
+    for topic, topic_articles in ranked_specific_articles.items():
+        print(f"{topic}: {len(topic_articles)} articles")
+
     # Step 3: Handle general articles
     general_articles = [article for article in articles if article['specific_topic'] is None]
+    print(f"\nNumber of general articles: {len(general_articles)}")
+
     X, vectorizer = extract_features(general_articles)
     lda, topic_keywords = perform_topic_modeling(X, vectorizer, n_topics=10)
+    
     general_articles = assign_topics_and_relevance(general_articles, lda, X)
     general_articles = rank_articles_by_relevance(general_articles)
 
     # Step 4: Article selection
-    manual_selection = input("Do you want to manually select articles for today's digest? (y/n): ").lower() == 'y'
-    
-    if manual_selection:
+    print("\nArticle selection...")
+    selection_mode = input("Choose selection mode (auto/manual): ").lower()
+    if selection_mode == 'manual':
         selected_articles = manual_article_selection(ranked_specific_articles, general_articles)
     else:
         selected_articles = select_top_articles(ranked_specific_articles, general_articles)
 
+    # Print selected articles
+    print("\nSelected articles:")
+    for topic, articles in selected_articles.items():
+        print(f"\n{topic}:")
+        for article in articles:
+            print(f"- {article['title']} (Relevance: {article['topic_relevance']:.2f})")
+
     # Step 5: Summarize selected articles
+    print("\nSummarizing selected articles...")
     summarized_articles = {}
     for topic, articles in selected_articles.items():
         summarized_articles[topic] = [(article, summarize_article(article)) for article in articles]
 
+    # Print summaries
+    print("\nArticle summaries:")
+    for topic, articles in summarized_articles.items():
+        print(f"\n{topic}:")
+        for article, summary in articles:
+            print(f"- {article['title']}")
+            print(f"  Summary: {summary[:100]}...")  # Print first 100 characters of summary
+
     # Step 6: Generate email content
+    print("\nGenerating email content...")
     email_content = generate_email_content(summarized_articles)
 
-    # Step 7: Send emails (commented out for now)
-    # send_emails(email_content)
+    # Print a sample of the email content
+    print("\nSample of generated email content:")
+    print(email_content[:500] + "...")  # Print first 500 characters
 
-    print("News digest process completed!")
+    # Step 7: Test translation
+    print("\nTesting translation...")
+    languages_to_test = ['es', 'fr', 'de']  # Spanish, French, German
+    for lang in languages_to_test:
+        print(f"Translating to {lang}...")
+        translated_content = translate_content(email_content[:1000], lang)  # Translate first 1000 characters for testing
+        print(f"First 200 characters of translated content: {translated_content[:200]}")
 
-    # Optional: Save the digest to a file
-    save_digest = input("Do you want to save today's digest to a file? (y/n): ").lower() == 'y'
-    if save_digest:
-        filename = f"digest_{datetime.now().strftime('%Y%m%d')}.html"
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(email_content)
-        print(f"Digest saved to {filename}")
-
-def send_emails(email_content):
-    # This function would contain your email sending logic
-    # For now, we'll just print a message
-    print("Emails would be sent here.")
+    print("\nTest run completed!")
 
 if __name__ == "__main__":
     main()
