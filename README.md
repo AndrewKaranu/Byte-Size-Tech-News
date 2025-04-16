@@ -35,8 +35,10 @@ Byte Sized Tech News is a project that delivers concise and relevant tech update
 
 
 ## Usage
+**LIVE DEPLOYMENT COMING VERY SOON**
+For now:
 
 1.  **Signup:** Access the frontend in your browser and sign up for the newsletter.
-2.  **Admin Interface:** Access the admin interface via the `/admin` route in your browser.  You'll need to implement proper authentication to protect this.
+2.  **Admin Interface:** Access the admin interface via the `/admin` route in your browser.
 3.  **Scheduler:** The backend includes a scheduler that automates article collection, summarization, and newsletter dispatch.  Configure the scheduler settings in `config.py` or via environment variables.
 4.  **Terminal:** Interact with the system using the terminal interface in the frontend. Type `help` for a list of available commands.
