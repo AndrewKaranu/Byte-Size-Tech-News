@@ -4,6 +4,7 @@ import AdminLogin from './AdminLogin';
 import Dashboard from './Dashboard';
 import ArticleManagement from './ArticleManagement';
 import NewsletterPreview from './NewsletterPreview';
+import Users from './Users';
 import Settings from './Settings';
 import './Styles/AdminStyles.css';   
 
@@ -86,6 +87,16 @@ const AdminPanel = () => {
           }
         />
         
+        <Route
+          path="/users"
+          element={
+            adminKey ? (
+              <Users adminKey={adminKey} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/admin/login" replace />
+            )
+          }
+        />
         <Route
           path="/settings"
           element={

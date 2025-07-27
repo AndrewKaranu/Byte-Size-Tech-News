@@ -6,34 +6,53 @@ from app.services.newsletter_service import (
     get_latest_batch, generate_preview_content, add_custom_article,
     finalize_newsletter, get_selected_articles
 )
-from app.services.email_service import send_newsletter, send_newsletter_preview
+from app.services.email_service import send_newsletter, send_newsletter_preview, test_email_connection
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime, time
+import json
+import re
+
+def safe_json_loads(json_string):
+    """Safely parse JSON with error handling for MySQL Unicode issues"""
+    if not json_string:
+        return {}
+    
+    try:
+        return json.loads(json_string)
+    except json.JSONDecodeError as e:
+        print(f"JSON parse error: {e}")
+        print(f"Problematic JSON (first 200 chars): {json_string[:200]}")
+        
+        # Try to fix common Unicode escape issues
+        try:
+            # Remove incomplete Unicode escapes
+            fixed_string = re.sub(r'\\u[0-9a-fA-F]{0,3}(?![0-9a-fA-F])', '', json_string)
+            return json.loads(fixed_string)
+        except json.JSONDecodeError:
+            try:
+                # Try removing all potentially problematic Unicode sequences
+                fixed_string = re.sub(r'\\u[^"]*(?![0-9a-fA-F]{4})', '', json_string)
+                return json.loads(fixed_string)
+            except json.JSONDecodeError:
+                print(f"Could not fix JSON string. Returning empty dict.")
+                return {}
+
+def safe_json_dumps(data):
+    """Safely serialize data to JSON"""
+    try:
+        return json.dumps(data, ensure_ascii=False)
+    except (TypeError, ValueError) as e:
+        print(f"JSON serialization error: {e}")
+        # Fallback with ASCII encoding
+        return json.dumps(data, ensure_ascii=True)
 import json
 import os
 
 # Admin Authentication Middleware
 def get_admin_key():
-    """Helper function to get admin key from config.json"""
-    try:
-        # Corrected path to config.json
-        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
-
-        print(f"Looking for config.json at: {config_path}")
-
-        with open(config_path, 'r') as config_file:
-            config_data = json.load(config_file)
-
-        admin_key = config_data.get('ADMIN_KEY')
-        print(f"Admin key loaded from config.json: {admin_key}")
-        return admin_key
-    except Exception as e:
-        print(f"Error loading config.json: {str(e)}")
-        # Fall back to config.py
-        admin_key = current_app.config.get('ADMIN_KEY')
-        print(f"Admin key loaded from app.config: {admin_key}")
-        return admin_key
+    """Helper function to get admin key from Flask config"""
+    return current_app.config.get('ADMIN_KEY')
 
 # Admin Authentication Middleware
 def requires_admin(f):
@@ -114,7 +133,7 @@ def admin_get_articles(batch_id):
         if not batch:
             return jsonify({'error': 'Batch not found'}), 404
             
-        articles_data = json.loads(batch.articles_json)
+        articles_data = safe_json_loads(batch.articles_json)
         return jsonify({
             'batch_id': batch.id,
             'date_created': batch.date_created.isoformat(),
@@ -148,7 +167,7 @@ def admin_select_article(batch_id):
         if not batch:
             return jsonify({'error': 'Batch not found'}), 404
 
-        articles_data = json.loads(batch.articles_json)
+        articles_data = safe_json_loads(batch.articles_json)
 
         # Find the article in the specific or general articles
         article_to_add = None
@@ -171,7 +190,7 @@ def admin_select_article(batch_id):
             return jsonify({'error': 'Article not found in batch'}), 404
 
         # Add or remove from selected articles
-        selected = json.loads(batch.selected_json) if batch.selected_json else {}
+        selected = safe_json_loads(batch.selected_json) if batch.selected_json else {}
 
         if topic not in selected:
             selected[topic] = []
@@ -190,7 +209,7 @@ def admin_select_article(batch_id):
             selected[topic].append(article_to_add)
             message = 'Article selected successfully'
 
-        batch.selected_json = json.dumps(selected)
+        batch.selected_json = safe_json_dumps(selected)
         db.session.commit()
 
         return jsonify({
@@ -208,7 +227,7 @@ def admin_get_selected_articles(batch_id):
         if not batch:
             return jsonify({'error': 'Batch not found'}), 404
 
-        selected_articles = json.loads(batch.selected_json) if batch.selected_json else {}
+        selected_articles = safe_json_loads(batch.selected_json) if batch.selected_json else {}
         
         # Debug info
         print(f"Selected articles for batch {batch_id}:")
@@ -329,39 +348,54 @@ def admin_send_newsletter(batch_id):
 
 @app.route('/admin/verify', methods=['GET'])
 def admin_verify():
-    """Simple endpoint to verify admin key reading from config.json"""
+    """Simple endpoint to verify admin key reading from config"""
     admin_key = request.headers.get('Admin-Key')
     
-    # Read the admin key from config.json
+    # Use the same approach as other endpoints
+    expected_key = get_admin_key()
+    
+    print(f"Received key: '{admin_key}'")
+    print(f"Expected key from config: '{expected_key}'")
+    print(f"Keys match: {admin_key == expected_key}")
+    
+    if admin_key and admin_key == expected_key:
+        return jsonify({'authenticated': True}), 200
+    else:
+        return jsonify({'authenticated': False, 'error': 'Invalid admin key'}), 401
+
+@app.route('/admin/test-email', methods=['POST'])
+@requires_admin
+def admin_test_email():
+    """Test email configuration"""
     try:
-        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 
-                                 'Script', 'config.json')
-        
-        with open(config_path, 'r') as config_file:
-            config_data = json.load(config_file)
-            
-        # Assuming you add an "admin_key" field to your config.json
-        expected_key = get_admin_key()
-        
-        print(f"Loaded admin key from config.json")
-        print(f"Received key: '{admin_key}'")
-        print(f"Expected key from JSON: '{expected_key}'")
-        print(f"Keys match: {admin_key == expected_key}")
-        
-        if admin_key and admin_key == expected_key:
-            return jsonify({'authenticated': True}), 200
+        result = test_email_connection()
+        if result:
+            return jsonify({'success': True, 'message': 'Email connection test successful'}), 200
         else:
-            return jsonify({'authenticated': False, 'error': 'Invalid admin key'}), 401
-            
+            return jsonify({'success': False, 'message': 'Email connection test failed'}), 400
     except Exception as e:
-        print(f"Error loading config.json: {str(e)}")
-        # Fall back to config.py if json loading fails
-        expected_key = app.config.get('ADMIN_KEY')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/admin/test-database', methods=['POST'])
+@requires_admin
+def admin_test_database():
+    """Test database connection"""
+    try:
+        # Test database connection
+        db.engine.execute('SELECT 1')
         
-        if admin_key and admin_key == expected_key:
-            return jsonify({'authenticated': True}), 200
-        else:
-            return jsonify({'authenticated': False, 'error': 'Invalid admin key'}), 401
+        # Get database info
+        db_url = current_app.config.get('SQLALCHEMY_DATABASE_URI')
+        db_type = 'MySQL' if 'mysql' in db_url else 'SQLite' if 'sqlite' in db_url else 'Unknown'
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Database connection test successful',
+            'database_type': db_type,
+            'database_url': db_url.split('@')[-1] if '@' in db_url else db_url  # Hide credentials
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @requires_admin
@@ -410,6 +444,46 @@ def admin_settings():
             }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/users', methods=['GET'])
+@requires_admin
+def admin_get_users():
+    """Get list of all registered users"""
+    users = User.query.all()
+    user_list = []
+    for u in users:
+        user_list.append({
+            'id': u.id,
+            'email': u.email,
+            'language': u.language,
+            'is_admin': u.is_admin
+        })
+    return jsonify({'users': user_list}), 200
+
+@app.route('/admin/users/<int:user_id>', methods=['PUT'])
+@requires_admin
+def admin_update_user(user_id):
+    """Update user information"""
+    data = request.get_json() or {}
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    if 'email' in data:
+        user.email = data['email']
+    if 'language' in data:
+        user.language = data['language']
+    if 'is_admin' in data:
+        user.is_admin = data['is_admin']
+    db.session.commit()
+    return jsonify({
+        'message': 'User updated successfully',
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'language': user.language,
+            'is_admin': user.is_admin
+        }
+    }), 200
 
 # Scheduler functions
 scheduler = BackgroundScheduler()

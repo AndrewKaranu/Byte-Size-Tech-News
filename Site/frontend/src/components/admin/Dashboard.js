@@ -124,18 +124,25 @@ try {
 
   return (
     <div className="admin-dashboard">
-      <div className="admin-header">
+        <div className="admin-header">
         <h1>Newsletter Dashboard</h1>
         <button className="admin-button primary" onClick={collectNewArticles}>
           Collect New Articles
         </button>
-        <button 
-            className="admin-button secondary" 
-            onClick={createDummyBatch}
-            style={{ marginLeft: '10px' }}
-          >
-            Create Dummy Batch
-          </button>
+        <button
+          className="admin-button secondary"
+          onClick={createDummyBatch}
+          style={{ marginLeft: '10px' }}
+        >
+          Create Dummy Batch
+        </button>
+        <button
+          className="admin-button secondary"
+          onClick={() => navigate('/admin/users')}
+          style={{ marginLeft: '10px' }}
+        >
+          Manage Users
+        </button>
       </div>
       
       {error && <div className="admin-error-message">{error}</div>}
