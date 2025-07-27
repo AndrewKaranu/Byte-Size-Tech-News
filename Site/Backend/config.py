@@ -69,6 +69,6 @@ class Config:
     ADMIN_KEY = os.environ.get('ADMIN_KEY') or json_config.get('ADMIN_KEY') or 'hey'    
     
     # Google API Configuration
-    GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY') or json_config.get('GOOGLE_API_KEY') or 'AIzaSyCb-qOd9kzoMxpOZl4dnyl62kYDCGtES1M'
+    GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY') or json_config.get('GOOGLE_API_KEY')
     
     
