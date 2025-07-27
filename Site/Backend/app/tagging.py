@@ -31,9 +31,21 @@ from sklearn.cluster import KMeans
 gemini_available = False
 gemini_model = None
 try:
-    with open('config.json', 'r') as config_file:
-        config = json.load(config_file)
-    google_api_key = config.get('api_key')
+    from flask import current_app
+    
+    # Try to get from Flask config first
+    try:
+        google_api_key = current_app.config.get('GOOGLE_API_KEY')
+    except RuntimeError:
+        # If not in Flask context, try config.json
+        import os
+        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
+        try:
+            with open(config_path, 'r') as config_file:
+                config = json.load(config_file)
+            google_api_key = config.get('GOOGLE_API_KEY')
+        except FileNotFoundError:
+            google_api_key = None
     
     if google_api_key:
         genai.configure(api_key=google_api_key)

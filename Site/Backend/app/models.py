@@ -1,5 +1,6 @@
 from app import db
 from datetime import datetime,time
+from sqlalchemy.dialects.mysql import LONGTEXT
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -13,9 +14,9 @@ class User(db.Model):
 class ArticleBatch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
-    articles_json = db.Column(db.Text)  # JSON string of all collected articles
-    selected_json = db.Column(db.Text)  # JSON string of selected articles
-    email_content = db.Column(db.Text)  # Final email HTML content
+    articles_json = db.Column(LONGTEXT)  # JSON string of all collected articles
+    selected_json = db.Column(LONGTEXT)  # JSON string of selected articles
+    email_content = db.Column(LONGTEXT)  # Final email HTML content
     is_finalized = db.Column(db.Boolean, default=False)
     is_sent = db.Column(db.Boolean, default=False)
     admin_approved = db.Column(db.Boolean, default=False)

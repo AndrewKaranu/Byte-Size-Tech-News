@@ -2,10 +2,45 @@ import os
 import sys
 from datetime import datetime, time
 import json
+import re
 from flask import current_app
 from app import db
 from app.models import User, ArticleBatch, SelectedArticle
 import uuid
+
+def safe_json_loads(json_string):
+    """Safely parse JSON with error handling for MySQL Unicode issues"""
+    if not json_string:
+        return {}
+    
+    try:
+        return json.loads(json_string)
+    except json.JSONDecodeError as e:
+        print(f"JSON parse error in newsletter_service: {e}")
+        print(f"Problematic JSON (first 200 chars): {json_string[:200]}")
+        
+        # Try to fix common Unicode escape issues
+        try:
+            # Remove incomplete Unicode escapes
+            fixed_string = re.sub(r'\\u[0-9a-fA-F]{0,3}(?![0-9a-fA-F])', '', json_string)
+            return json.loads(fixed_string)
+        except json.JSONDecodeError:
+            try:
+                # Try removing all potentially problematic Unicode sequences
+                fixed_string = re.sub(r'\\u[^"]*(?![0-9a-fA-F]{4})', '', json_string)
+                return json.loads(fixed_string)
+            except json.JSONDecodeError:
+                print(f"Could not fix JSON string in newsletter_service. Returning empty dict.")
+                return {}
+
+def safe_json_dumps(data):
+    """Safely serialize data to JSON"""
+    try:
+        return json.dumps(data, ensure_ascii=False)
+    except (TypeError, ValueError) as e:
+        print(f"JSON serialization error in newsletter_service: {e}")
+        # Fallback with ASCII encoding
+        return json.dumps(data, ensure_ascii=True)
 
 # Add the Script directory to Python path to import modules
 script_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'Script')
@@ -71,7 +106,7 @@ def collect_and_process_articles():
     new_batch = ArticleBatch(
         date_created=datetime.now(),
         is_finalized=False,
-        articles_json=json.dumps(sanitized_data)
+        articles_json=safe_json_dumps(sanitized_data)
     )
     db.session.add(new_batch)
     db.session.commit()
@@ -92,7 +127,7 @@ def select_articles_automatically(batch_id=None):
     if not batch:
         raise Exception("No article batch found")
     
-    articles_data = json.loads(batch.articles_json)
+    articles_data = safe_json_loads(batch.articles_json)
     specific_articles = articles_data.get('specific_articles', {})
     general_articles = articles_data.get('general_articles', [])
     
@@ -109,7 +144,7 @@ def select_articles_automatically(batch_id=None):
             selected_articles[topic] = sorted_articles[:num_to_select]
     
     # Store selected articles
-    batch.selected_json = json.dumps(selected_articles)
+    batch.selected_json = safe_json_dumps(selected_articles)
     batch.is_finalized = True
     db.session.commit()
     
@@ -123,7 +158,7 @@ def get_selected_articles(batch_id=None):
     if not batch or not batch.selected_json:
         return None
     
-    return json.loads(batch.selected_json)
+    return safe_json_loads(batch.selected_json)
 
 def generate_preview_content(batch_id=None):
     """
@@ -162,13 +197,13 @@ def add_custom_article(batch_id, title, link, summary, topic):
     }
     
     # Add to selected articles
-    selected_articles = json.loads(batch.selected_json) if batch.selected_json else {}
+    selected_articles = safe_json_loads(batch.selected_json) if batch.selected_json else {}
     
     if topic not in selected_articles:
         selected_articles[topic] = []
     
     selected_articles[topic].append(custom_article)
-    batch.selected_json = json.dumps(selected_articles)
+    batch.selected_json = safe_json_dumps(selected_articles)
     db.session.commit()
     
     return custom_article

@@ -6,17 +6,9 @@ from flask_migrate import Migrate
 
 app = Flask(__name__)
 
-# Load configuration from config.json
-with open('config.json') as config_file:
-    config = json.load(config_file)
-
-app.config['SECRET_KEY'] = config.get('SECRET_KEY', 'you-will-never-guess')
-app.config['SQLALCHEMY_DATABASE_URI'] = config.get('DATABASE_URL', 'sqlite:///app.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['AWS_REGION'] = config.get('AWS_REGION')  
-app.config['AWS_ACCESS_KEY'] = config.get('AWS_ACCESS_KEY') 
-app.config['AWS_SECRET_KEY'] = config.get('AWS_SECRET_KEY') 
-app.config['EMAIL_SENDER'] = config.get('EMAIL_SENDER')
+# Use the centralized config system
+from config import Config
+app.config.from_object(Config)
 
 from flask_cors import CORS
 
